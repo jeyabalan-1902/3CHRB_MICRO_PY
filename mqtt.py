@@ -1,3 +1,4 @@
+import esp32
 from umqtt.simple import MQTTClient
 import ujson
 import ntptime
@@ -7,9 +8,10 @@ import urandom
 import machine
 import utime
 from collections import OrderedDict
-from machine import Timer
+from machine import Timer, Pin
 import uasyncio as asyncio
-from nvs import get_product_id, product_key
+from nvs import get_product_id, product_key, clear_wifi_credentials
+from gpio import R1,R2,R3
 
 
 client = None
@@ -25,6 +27,18 @@ PORT = 1883
 USERNAME = "Nikhil"
 MQTT_PASSWORD = "Nikhil8182"
 MQTT_KEEPALIVE = 60
+
+def hardReset():
+    global client
+    if client is None:
+        print("MQTT client not initialized. Cannot publish hard reset message.")
+    else:
+        try:
+            payload = {"id": product_id}
+            client.publish("onwords/hardReset", ujson.dumps(payload))
+            print("Hard reset published to MQTT broker.")
+        except Exception as e:
+            print(f"Failed to publish hard reset message: {e}")
 
 #publish devices state
 def publish_state():
@@ -54,8 +68,7 @@ def publish_deviceLog(device, state):
             "time_stamp": get_timestamp()
         }
         client.publish(f"onwords/{product_id}/switch", ujson.dumps(log))
-        print("log published:", log)
-        
+        print("log published:", log)       
     else:
         print("mqtt client not connected")
 
@@ -96,6 +109,10 @@ def mqtt_callback(topic, msg):
     if topic_str == f"onwords/{product_id}/softReset":
         try:
             clear_wifi_credentials()
+            state = {
+                "status": True
+            }
+            client.publish(TOPIC_SOFTRST, ujson.dumps(state))
             time.sleep(5)
             machine.reset()
 

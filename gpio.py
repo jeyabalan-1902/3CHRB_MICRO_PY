@@ -1,6 +1,8 @@
+import esp32
+import machine
 from machine import Pin, Timer
 import utime
-from mqtt import publish_state, publish_deviceLog
+from mqtt import*
 
 # Pin Setup
 R1 = Pin(26, Pin.OUT)
@@ -21,6 +23,14 @@ DEBOUNCE_DELAY = 400
 debounce_timer = Timer(2)
 reset_timer = Timer(1)
 
+def reset_callback(timer):
+    global press_start_time
+    if Rst.value() == 0:
+        print("Reset button held for 500ms! Clearing credentials and restarting.")
+        hardReset()
+        clear_wifi_credentials()
+        time.sleep(5)
+        machine.reset()
 
 def handle_F1(pin):
     global last_trigger_times
