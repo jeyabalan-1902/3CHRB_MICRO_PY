@@ -21,8 +21,8 @@ from wifi_con import connect_wifi, check_internet, wifi, ap
 from http import start_http_server
 from mqtt import mqtt_listener, mqtt_keepalive, connect_mqtt, process_F3, process_F2, process_F1, hardReset
 from gpio import F1, F2, F3, Rst, http_server_led, press_start_time, reset_timer, S_Led, last_trigger_times, DEBOUNCE_DELAY, debounce_timer, R1, R2, R3
+from ble_control import wait_for_write, ble_peripheral_task
 from eeprom import load_state
-
 MAX_FAST_RETRIES = 50
 FAST_RETRY_INTERVAL = 10
 SLOW_RETRY_INTERVAL = 300
@@ -140,12 +140,14 @@ async def main():
     R2.value(r2)
     R3.value(r3)
     stored_ssid, stored_password = get_stored_wifi_credentials()
+    print_firmware_version()
+#     ble_task = asyncio.create_task(ble_peripheral_task())
+#     ble_write_task = asyncio.create_task(wait_for_write())
     if stored_ssid and stored_password:
         ap.active(False)
         while True:
             if connect_wifi(stored_ssid, stored_password):  
                 print("Wi-Fi Connected. Starting background tasks...on the updated version")
-                print_firmware_version()
                 connect_mqtt()
                 t1 = asyncio.create_task(mqtt_listener())
                 t2 = asyncio.create_task(mqtt_keepalive())

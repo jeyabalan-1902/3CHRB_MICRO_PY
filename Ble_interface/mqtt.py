@@ -1,5 +1,5 @@
 import esp32
-from umqtt.simple import MQTTClient
+from umqtt.robust import MQTTClient
 import ujson
 import ntptime
 import time
@@ -83,6 +83,21 @@ def publish_deviceLog(device, state):
         print("log published:", log)       
     else:
         print("mqtt client not connected")
+        
+def publish_ble_deviceLog(device, state):
+    global client
+    if client:
+        log = {
+            device: state,
+            "id": product_id,
+            "client_id": "Ble",
+            "ip": network.WLAN(network.STA_IF).ifconfig()[0],
+            "time_stamp": get_timestamp()
+        }
+        client.publish(TOPIC_DEVICE_LOG, ujson.dumps(log))
+        print("log published:", log)       
+    else:
+        print("mqtt client not connected")
 
 #MQTT callback
 def mqtt_callback(topic, msg):
@@ -107,7 +122,6 @@ def mqtt_callback(topic, msg):
                 R3.value(data["device3"])
                 status_msg = ujson.dumps({"device3": data["device3"]})
                 client.publish(TOPIC_CURRENT_STATUS, status_msg)
-                
             save_state(R1.value(), R2.value(), R3.value())
 
         except ValueError as e:
@@ -247,6 +261,7 @@ def process_F1():
     print("switch 1 toggled")
     publish_state()
     publish_deviceLog("device1", new_state)
+
     
 def process_F2():
     new_state = not R2.value()
@@ -254,6 +269,7 @@ def process_F2():
     print("Switch 2 toggled")
     publish_state()
     publish_deviceLog("device2", new_state)
+
     
 
 def process_F3():
@@ -262,3 +278,4 @@ def process_F3():
     print("Switch 3 toggled")
     publish_state()
     publish_deviceLog("device3", new_state)
+   
