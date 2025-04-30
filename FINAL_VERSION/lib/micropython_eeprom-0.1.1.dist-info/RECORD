@@ -1,0 +1,5 @@
+eeprom/__init__.py,,
+eeprom/eeprom.py,,
+eeprom/version.py,,
+micropython_eeprom-0.1.1.dist-info/METADATA,,
+micropython_eeprom-0.1.1.dist-info/RECORD,,

@@ -1,0 +1,13 @@
+Metadata-Version: 2.4
+Name: micropython-eeprom
+Version: 0.1.1
+Summary: MicroPython driver for AT24Cxx EEPROM
+Home-page: https://github.com/brainelectronics/micropython-eeprom
+Author: brainelectronics
+Author-email: info@brainelectronics.de
+License: MIT
+Dynamic: author
+Dynamic: author-email
+Dynamic: home-page
+Dynamic: license
+Dynamic: summary
