@@ -149,7 +149,7 @@ Rst.irq(trigger=Pin.IRQ_FALLING, handler=Rst_irq_handler)
 
 async def main():
     apply_loaded_device_states()
-
+    print_firmware_version()
     switch_tasks = [
         asyncio.create_task(monitor_switch(F1, process_F1, "F1")),
         asyncio.create_task(monitor_switch(F2, process_F2, "F2")),
@@ -163,7 +163,6 @@ async def main():
         while True:
             if connect_wifi(stored_ssid, stored_password):  
                 print("Wi-Fi Connected. Starting background tasks...on the updated version")
-                print_firmware_version()
                 connect_mqtt()
                 tasks = switch_tasks + [
                     asyncio.create_task(mqtt_listener()),

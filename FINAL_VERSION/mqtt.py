@@ -11,7 +11,7 @@ import network
 from collections import OrderedDict
 from machine import Timer, Pin
 import uasyncio as asyncio
-from nvs import get_product_id, product_key, clear_wifi_credentials
+from nvs import get_product_id, product_key, clear_wifi_credentials, store_pid
 from gpio import S_Led
 from at24c32n import eeprom, save_device_states
 
@@ -157,18 +157,39 @@ def mqtt_callback(topic, msg):
         try:
             data = ujson.loads(msg)
             if data.get("update") is True:
-                print("OTA update trigger received via MQTT!")
+                server_ip = data.get("server")
+                if not server_ip:
+                    print("No server IP provided in payload.")
+                    return
 
-                status_msg = ujson.dumps({"status": "update_started", "pid": product_id})
+                from ota_update import get_local_version  
+                current_version = get_local_version()
+
+                print(f"OTA update trigger received. Server IP: {server_ip}")
+
+                status_msg = ujson.dumps({
+                    "status": "update_started",
+                    "pid": product_id,
+                    "version": current_version
+                })
                 client.publish(f"onwords/{product_id}/firmware", status_msg)
 
                 import ota_update
-                success = ota_update.ota_update_with_result()
+                success = ota_update.ota_update_with_result(server_ip)
 
                 if success:
-                    status_msg = ujson.dumps({"status": "update_success", "pid": product_id})
+                    updated_version = ota_update.get_local_version()
+                    status_msg = ujson.dumps({
+                        "status": "update_success",
+                        "pid": product_id,
+                        "version": updated_version
+                    })
                 else:
-                    status_msg = ujson.dumps({"status": "update_failed", "pid": product_id})
+                    status_msg = ujson.dumps({
+                        "status": "update_failed",
+                        "pid": product_id,
+                        "version": current_version
+                    })
 
                 client.publish(f"onwords/{product_id}/firmware", status_msg)
                 time.sleep(3)

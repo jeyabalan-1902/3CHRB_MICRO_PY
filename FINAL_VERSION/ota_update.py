@@ -57,12 +57,13 @@ def download_and_replace(url, local_path):
         print(f"Error downloading {url}: {e}")
         return False
 
-def send_ack_to_server(status, pid):
+def send_ack_to_server(status, pid, server_ip, version):
     try:
-        ack_url = "http://13.233.121.64:8080/ack"  
+        ack_url = f"http://{server_ip}:8080/ack"
         data = ujson.dumps({
             "status": status,
-            "pid": pid
+            "pid": pid,
+            "version": version
         })
         headers = {'Content-Type': 'application/json'}
         print(f"Sending ACK to {ack_url} with data: {data}")
@@ -73,14 +74,13 @@ def send_ack_to_server(status, pid):
     except Exception as e:
         print("Failed to send ACK:", e)
 
-def ota_update_with_result():
-    server_ip = "13.233.121.64"
+def ota_update_with_result(server_ip):
     server_port = 8080
     server_url = f"http://{server_ip}:{server_port}/version.json"
 
     if not check_server_connection(server_ip, server_port):
         print("Server not reachable before OTA. Skipping update.")
-        send_ack_to_server("update_failed", f"{product_id}")
+        send_ack_to_server("update_failed", f"{product_id}", server_ip, get_local_version())
         return False
 
     try:
@@ -107,11 +107,11 @@ def ota_update_with_result():
             if all_ok:
                 save_local_version(remote_version["version"])
                 print("Update successful.")
-                send_ack_to_server("update_success", f"{product_id}")
+                send_ack_to_server("update_success", f"{product_id}", server_ip, remote_version["version"])
                 return True
             else:
                 print("Update failed during file download.")
-                send_ack_to_server("update_failed", f"{product_id}")
+                send_ack_to_server("update_failed", f"{product_id}", server_ip, remote_version.get("version", "unknown"))
                 return False
 
         else:
@@ -120,5 +120,7 @@ def ota_update_with_result():
 
     except Exception as e:
         print("OTA check failed:", e)
-        send_ack_to_server("update_failed", f"{product_id}")
+        send_ack_to_server("update_failed", f"{product_id}", server_ip, get_local_version())
         return False
+
+
