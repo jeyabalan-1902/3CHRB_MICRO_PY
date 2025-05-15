@@ -1,6 +1,9 @@
 import os
+import sys
 import subprocess
 import time
+import csv
+from datetime import datetime
 import serial
 
 # === CONFIGURATION ===
@@ -8,8 +11,10 @@ PORT = "COM4"  # Change to your ESP32's port
 FIRMWARE = "ESP32_GENERIC-OTA-20250415-v1.25.0.bin"
 PY_FILES = [
     "main.py", "mqtt.py", "wifi_con.py", "gpio.py",
-    "http.py", "ota_update.py", "nvs.py", "local_version.json"
+    "http.py", "ota_update.py", "nvs.py", "at24c32n.py", "local_version.json"
 ]
+
+LOG_FILE = "flash_log.csv"
 
 def wait_for_micropython_ready(port, timeout=10):
     print(f"⏳ Waiting for MicroPython REPL on {port}...", end="", flush=True)
@@ -25,9 +30,51 @@ def wait_for_micropython_ready(port, timeout=10):
                 print(".", end="", flush=True)
                 time.sleep(0.5)
     except Exception as e:
-        print(f"\n⚠️ Serial error: {e}")
+        print(f"\⚠️ Serial error: {e}")
     print("\n❌ MicroPython did not start in time.")
     return False
+
+def log_flash(product_id):
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with open(LOG_FILE, "a", newline="") as csvfile:
+        writer = csv.writer(csvfile)
+        if csvfile.tell() == 0:
+            writer.writerow(["Timestamp", "Product ID", "Port"])
+        writer.writerow([now, product_id, PORT])
+
+def upload_file(file_path, target=":"):
+    print(f"➡ Uploading {file_path}...")
+    result = subprocess.run(
+        ["mpremote", "connect", PORT, "fs", "cp", file_path, target],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode != 0:
+        print(f"❌ Failed to upload {file_path}:\n{result.stderr}")
+    else:
+        print(f"✅ Uploaded {file_path}")
+
+def upload_folder(folder_path, target=":"):
+    created_dirs = set()
+
+    for root, _, files in os.walk(folder_path):
+        for file in files:
+            local_path = os.path.join(root, file)
+            rel_path = os.path.relpath(local_path, folder_path).replace("\\", "/")
+            remote_path = f"{target}/lib/{rel_path}"
+
+            # Ensure all subdirectories are created recursively
+            remote_dir = os.path.dirname(remote_path)
+            dirs_to_create = remote_dir.split('/')
+            path_accum = ""
+            for part in dirs_to_create:
+                path_accum += part + "/"
+                if path_accum not in created_dirs:
+                    subprocess.run(["mpremote", "connect", PORT, "fs", "mkdir", path_accum[:-1]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    created_dirs.add(path_accum)
+
+            upload_file(local_path, remote_path)
+
 
 # === STEP 0: Prompt for Product ID ===
 product_id = input("🔐 Enter Product ID to flash into NVS: ").strip()
@@ -48,19 +95,17 @@ if not wait_for_micropython_ready(PORT):
     print("❌ Aborting upload due to MicroPython not responding.")
     exit(1)
 
-# === STEP 4: Upload project files ===
+# === STEP 4: Upload Python files ===
 print("📤 Uploading Python files to ESP32...")
 for file in PY_FILES:
-    print(f"➡ Uploading {file}...")
-    result = subprocess.run(
-        ["mpremote", "connect", PORT, "fs", "cp", file, ":"],
-        capture_output=True,
-        text=True
-    )
-    if result.returncode != 0:
-        print(f"❌ Failed to upload {file}:\n{result.stderr}")
-    else:
-        print(f"✅ Uploaded {file}")
+    upload_file(file)
+
+# === STEP 4.1: Upload lib/ folder ===
+if os.path.exists("lib"):
+    print("📁 Uploading 'lib/' folder...")
+    upload_folder("lib")
+else:
+    print("⚠️ 'lib/' folder not found. Skipping...")
 
 # === STEP 5: Write Product ID to NVS ===
 print("💾 Writing Product ID into ESP32 NVS...")
@@ -75,8 +120,11 @@ print("Product ID set to: {product_id}")
 
 subprocess.run(["mpremote", "connect", PORT, "exec", nvs_code])
 
+log_flash(product_id)
+
 # === STEP 6: Run main.py ===
 print("🏃 Running main.py...")
 subprocess.run(["mpremote", "connect", PORT, "run", "main.py"])
+sys.exit(0)
 
 print("\n✅ DONE: Firmware flashed, Product ID stored, and main.py running.")
